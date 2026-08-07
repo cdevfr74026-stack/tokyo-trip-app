@@ -11,6 +11,7 @@ export type ExpenseCategory =
   | 'shopping'
   | 'ticket'
   | 'souvenir'
+  | 'pet'
   | 'other'
 
 export type ItineraryCategory =

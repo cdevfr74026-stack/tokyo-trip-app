@@ -17,6 +17,7 @@ export const EXPENSE_CATEGORY_META: Record<ExpenseCategory, { label: string; emo
   shopping: { label: '購物', emoji: '🛍' },
   ticket: { label: '門票', emoji: '🎟' },
   souvenir: { label: '伴手禮', emoji: '🎁' },
+  pet: { label: '寵物', emoji: '🐾' },
   other: { label: '其他', emoji: '📌' },
 }
 

@@ -20,6 +20,7 @@ const BAR_COLORS: Record<ExpenseCategory, string> = {
   shopping: 'bg-milktea',
   ticket: 'bg-sage',
   souvenir: 'bg-matcha',
+  pet: 'bg-sage-dark',
   other: 'bg-warmgray',
 }
 
@@ -42,6 +43,7 @@ export default function Statistics() {
       shopping: 0,
       ticket: 0,
       souvenir: 0,
+      pet: 0,
       other: 0,
     }
     for (const e of expenses) byCategory[e.category] += e.amountForeign

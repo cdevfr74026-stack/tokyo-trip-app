@@ -1,12 +1,10 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Plus, PiggyBank, Trash2, HandCoins, Pencil, Landmark } from 'lucide-react'
+import { Plus, PiggyBank, Trash2, HandCoins, Landmark } from 'lucide-react'
 import { useTrip } from '@/hooks/useTrip'
 import { useExpenses, useSettlement, FUND_TRAVELER_ID, type ExpenseDraft } from '@/hooks/useExpenses'
 import { useFundContributions, type FundContributionDraft } from '@/hooks/useFundContributions'
 import { Card } from '@/components/ui/Card'
 import { SectionLabel } from '@/components/ui/SectionLabel'
-import { ProgressBar } from '@/components/ui/ProgressBar'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { FAB } from '@/components/ui/FAB'
@@ -30,8 +28,7 @@ function todayISO() {
 }
 
 export default function Expenses() {
-  const navigate = useNavigate()
-  const { trip, budget, loading: tripLoading } = useTrip()
+  const { trip, loading: tripLoading } = useTrip()
   const { expenses, loading: expensesLoading, addExpense, updateExpense, removeExpense } = useExpenses()
   const { contributions, loading: fundLoading, addContribution, updateContribution, removeContribution } = useFundContributions()
   const { show } = useToast()
@@ -68,9 +65,17 @@ export default function Expenses() {
     )
   }
 
-  const totalBudgetTwd = budget?.total ?? 0
   const spentTwd = settlement.totalForeign * trip.exchangeRate
-  const usedPercent = totalBudgetTwd > 0 ? (spentTwd * 100) / totalBudgetTwd : 0
+
+  const categoryTotalsMap = new Map<ExpenseCategory, number>()
+  for (const e of expenses) {
+    categoryTotalsMap.set(e.category, (categoryTotalsMap.get(e.category) ?? 0) + e.amountForeign)
+  }
+  const categoryTotals = CATEGORY_OPTIONS.map(([category, meta]) => ({
+    category,
+    meta,
+    amountForeign: categoryTotalsMap.get(category) ?? 0,
+  })).sort((a, b) => b.amountForeign - a.amountForeign)
 
   function openAddForm() {
     setEditingId(null)
@@ -187,27 +192,42 @@ export default function Expenses() {
 
       <div className="space-y-5 px-5">
         <Card>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-warmgray dark:text-warmgray-light">
-              <PiggyBank size={16} />
-              <span className="text-xs">旅行總支出費用</span>
-            </div>
-            <button
-              onClick={() => navigate('/more', { state: { openSettings: true } })}
-              className="flex items-center gap-1 text-xs text-sage-dark active:opacity-60 dark:text-sage-light"
-            >
-              <Pencil size={12} /> 編輯預算
-            </button>
+          <div className="flex items-center gap-1.5 text-warmgray dark:text-warmgray-light">
+            <PiggyBank size={16} />
+            <span className="text-xs">旅行總支出費用</span>
           </div>
           <p className="mt-2 font-display text-3xl text-ink dark:text-cream-soft">{formatCurrency(spentTwd, 'TWD')}</p>
-          <div className="mt-3">
-            <ProgressBar value={usedPercent} />
-          </div>
           <p className="mt-1.5 text-[12px] text-warmgray dark:text-warmgray-light">
-            約 {formatCurrency(settlement.totalForeign, 'JPY')}・預算 {formatCurrency(totalBudgetTwd, 'TWD')}・剩餘{' '}
-            {Math.max(0, 100 - usedPercent).toFixed(0)}%
+            約 {formatCurrency(settlement.totalForeign, 'JPY')}・共 {expenses.length} 筆紀錄
           </p>
         </Card>
+
+        <div>
+          <SectionLabel>分類支出總表</SectionLabel>
+          <Card padded={false} className="divide-y divide-khaki/40 dark:divide-dusk-border">
+            {categoryTotals.map(({ category, meta, amountForeign }) => (
+              <div key={category} className="flex items-center justify-between px-4 py-3">
+                <span className="flex items-center gap-2 text-[13.5px] text-ink dark:text-cream-soft">
+                  <span className="text-base">{meta.emoji}</span> {meta.label}
+                </span>
+                <div className="text-right">
+                  <p
+                    className={`font-display text-[15px] ${
+                      amountForeign > 0 ? 'text-ink dark:text-cream-soft' : 'text-warmgray/50 dark:text-warmgray-light/40'
+                    }`}
+                  >
+                    {formatCurrency(amountForeign * trip.exchangeRate, 'TWD')}
+                  </p>
+                  {amountForeign > 0 && (
+                    <p className="text-[11px] text-warmgray dark:text-warmgray-light">
+                      約 {formatCurrency(amountForeign, 'JPY')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </Card>
+        </div>
 
         <Card>
           <div className="flex items-center justify-between">
