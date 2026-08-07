@@ -84,6 +84,8 @@ export default function Expenses() {
       category: 'food',
       merchant: '',
       amountForeign: 0,
+      amountInput: 0,
+      currency: 'JPY',
       payerId: trip!.travelers[0]?.id ?? '',
       isSplit: true,
       splitWith: trip!.travelers.map((t) => t.id),
@@ -102,12 +104,22 @@ export default function Expenses() {
       category: e.category,
       merchant: e.merchant,
       amountForeign: e.amountForeign,
+      // 舊資料（新增這個功能之前記錄的花費）沒有 currency / amountInput 欄位，
+      // 一律視為當時是用日幣輸入，直接沿用 amountForeign 當作輸入金額
+      amountInput: e.amountInput ?? e.amountForeign,
+      currency: e.currency ?? 'JPY',
       payerId: e.payerId,
       isSplit: e.isSplit,
       splitWith: e.splitWith,
       note: e.note ?? '',
     })
     setFormOpen(true)
+  }
+
+  /** 依目前選擇的幣別，把使用者輸入的金額換算成日幣（amountForeign），供分帳與統計使用 */
+  function applyAmountInput(prev: ExpenseDraft, amountInput: number, currency: 'JPY' | 'TWD'): ExpenseDraft {
+    const amountForeign = currency === 'JPY' ? amountInput : amountInput / trip.exchangeRate
+    return { ...prev, amountInput, currency, amountForeign }
   }
 
   function handleSave() {
@@ -356,12 +368,25 @@ export default function Expenses() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[14px] font-medium text-ink dark:text-cream-soft">
-                        ¥{e.amountForeign.toLocaleString()}
-                      </p>
-                      <p className="text-[11px] text-warmgray dark:text-warmgray-light">
-                        {formatCurrency(e.amountForeign * trip.exchangeRate, 'TWD')}
-                      </p>
+                      {e.currency === 'TWD' ? (
+                        <>
+                          <p className="text-[14px] font-medium text-ink dark:text-cream-soft">
+                            {formatCurrency(e.amountInput ?? e.amountForeign * trip.exchangeRate, 'TWD')}
+                          </p>
+                          <p className="text-[11px] text-warmgray dark:text-warmgray-light">
+                            約 {formatCurrency(e.amountForeign, 'JPY')}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-[14px] font-medium text-ink dark:text-cream-soft">
+                            ¥{e.amountForeign.toLocaleString()}
+                          </p>
+                          <p className="text-[11px] text-warmgray dark:text-warmgray-light">
+                            {formatCurrency(e.amountForeign * trip.exchangeRate, 'TWD')}
+                          </p>
+                        </>
+                      )}
                     </div>
                     <button
                       onClick={(ev) => {
@@ -536,18 +561,40 @@ export default function Expenses() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-[12px] text-warmgray dark:text-warmgray-light">金額（¥） *</label>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label className="text-[12px] text-warmgray dark:text-warmgray-light">金額 *</label>
+                <div className="flex rounded-pill bg-cream-soft p-0.5 dark:bg-dusk-bg">
+                  {(['JPY', 'TWD'] as const).map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setDraft((p) => (p ? applyAmountInput(p, p.amountInput, c) : p))}
+                      className={`rounded-pill px-3 py-1 text-[12px] transition-colors ${
+                        draft.currency === c
+                          ? 'bg-sage text-cream-card shadow-card dark:bg-sage-dark'
+                          : 'text-warmgray dark:text-warmgray-light'
+                      }`}
+                    >
+                      {c === 'JPY' ? '¥ 日幣' : 'NT$ 台幣'}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <input
                 type="number"
                 inputMode="numeric"
-                value={draft.amountForeign || ''}
-                onChange={(e) => setDraft((p) => (p ? { ...p, amountForeign: Number(e.target.value) || 0 } : p))}
+                value={draft.amountInput || ''}
+                onChange={(e) =>
+                  setDraft((p) => (p ? applyAmountInput(p, Number(e.target.value) || 0, p.currency) : p))
+                }
                 placeholder="0"
                 className="w-full rounded-soft border border-khaki/60 bg-cream px-4 py-3 text-[15px] text-ink outline-none focus:border-sage dark:border-dusk-border dark:bg-dusk-bg dark:text-cream-soft"
               />
-              {draft.amountForeign > 0 && (
+              {draft.amountInput > 0 && (
                 <p className="mt-1 text-[12px] text-warmgray dark:text-warmgray-light">
-                  約 {formatCurrency(draft.amountForeign * trip.exchangeRate, 'TWD')}
+                  {draft.currency === 'JPY'
+                    ? `約 ${formatCurrency(draft.amountForeign * trip.exchangeRate, 'TWD')}`
+                    : `約 ${formatCurrency(draft.amountForeign, 'JPY')}`}
                 </p>
               )}
             </div>

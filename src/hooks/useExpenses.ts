@@ -11,6 +11,8 @@ export interface ExpenseDraft {
   category: Expense['category']
   merchant: string
   amountForeign: number
+  amountInput: number
+  currency: 'JPY' | 'TWD'
   payerId: string
   isSplit: boolean
   splitWith: string[]

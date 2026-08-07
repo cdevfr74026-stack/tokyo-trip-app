@@ -122,7 +122,12 @@ export interface Expense {
   date: string
   category: ExpenseCategory
   merchant: string
+  /** 一律換算成日幣（¥）的金額，供分帳、統計、分類加總等所有計算使用 */
   amountForeign: number
+  /** 使用者實際輸入當下所選幣別的原始金額，只用於畫面顯示與重新編輯，不參與計算 */
+  amountInput?: number
+  /** 使用者新增這筆花費時選擇的幣別，未填（舊資料）一律視為日幣 */
+  currency?: 'JPY' | 'TWD'
   payerId: string
   isSplit: boolean
   splitWith: string[]
