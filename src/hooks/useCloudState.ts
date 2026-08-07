@@ -21,8 +21,22 @@ export function useCloudState<T>(key: string, seedFactory: () => T) {
     setLoading(true)
     let isFirstCallback = true
     let seeded = false
+    let settled = false
+
+    // 安全逾時：正常情況下 storage.subscribe() 會很快回呼一次，
+    // 但如果連線初始化本身卡住（例如網路環境很差、Firebase SDK 初始化異常），
+    // 8 秒後強制結束 loading、改用種子資料，避免畫面永遠卡在 Loading Skeleton。
+    // 一旦之後連線恢復，onSnapshot 還是會正常回呼並補上真實資料。
+    const timeoutId = window.setTimeout(() => {
+      if (settled) return
+      settled = true
+      setValueState((prev) => prev ?? seedRef.current())
+      setLoading(false)
+    }, 8000)
 
     const unsubscribe = storage.subscribe<T>(key, (remote) => {
+      settled = true
+      window.clearTimeout(timeoutId)
       if (remote !== null) {
         setValueState(remote)
       } else if (isFirstCallback && !seeded) {
@@ -37,6 +51,7 @@ export function useCloudState<T>(key: string, seedFactory: () => T) {
     })
 
     return () => {
+      window.clearTimeout(timeoutId)
       unsubscribe()
     }
   }, [key])

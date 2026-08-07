@@ -71,7 +71,11 @@ export class FirebaseStorageAdapter implements StorageAdapter {
         callback((data.value as T) ?? null)
       },
       (err) => {
+        // 訂閱失敗（例如網路瞬斷、Firestore 連線問題）時，
+        // 一定要呼叫 callback(null)，讓上層的 loading 狀態能夠結束，
+        // 否則畫面會永遠卡在 Loading Skeleton，使用者會以為 App 打不開。
         console.error(`[firebase-storage] 訂閱 ${key} 失敗`, err)
+        callback(null)
       },
     )
     return unsubscribe
