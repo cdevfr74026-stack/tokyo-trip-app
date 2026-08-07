@@ -7,7 +7,6 @@ import { useWeather } from '@/hooks/useWeather'
 import { useTheme } from '@/hooks/useTheme'
 import { Card } from '@/components/ui/Card'
 import { SectionLabel } from '@/components/ui/SectionLabel'
-import { ProgressBar } from '@/components/ui/ProgressBar'
 import { StampBadge } from '@/components/ui/StampBadge'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -43,7 +42,7 @@ export default function Dashboard() {
 }
 
 function DashboardContent() {
-  const { trip, days, items, budget, loading } = useTrip()
+  const { trip, days, items, loading } = useTrip()
   const { expenses } = useExpenses()
   const { mode, toggle } = useTheme()
   const navigate = useNavigate()
@@ -72,9 +71,7 @@ function DashboardContent() {
     : []
 
   const spentForeign = expenses.reduce((sum, e) => sum + e.amountForeign, 0)
-  const totalBudgetTwd = budget?.total ?? 0
   const spentTwd = spentForeign * trip.exchangeRate
-  const usedPercent = totalBudgetTwd > 0 ? (spentTwd * 100) / totalBudgetTwd : 0
   const quote = getDailyQuote(TRIP_QUOTES)
 
   return (
@@ -124,7 +121,7 @@ function DashboardContent() {
       </div>
 
       <div className="space-y-5 px-5 pt-5">
-        {/* 天氣 + 預算 兩欄 */}
+        {/* 天氣 + 總支出 兩欄 */}
         <div className="grid grid-cols-2 gap-3">
           <Card className="!p-4 cursor-pointer text-left active:opacity-80" onClick={() => navigate('/weather')}>
             <div className="flex items-center gap-1.5 text-warmgray dark:text-warmgray-light">
@@ -147,19 +144,16 @@ function DashboardContent() {
               </>
             )}
           </Card>
-          <Card className="!p-4">
+          <Card className="!p-4 cursor-pointer text-left active:opacity-80" onClick={() => navigate('/expenses')}>
             <div className="flex items-center gap-1.5 text-warmgray dark:text-warmgray-light">
               <Wallet2 size={16} />
-              <span className="text-xs">目前預算</span>
+              <span className="text-xs">目前總支出</span>
             </div>
             <p className="mt-2 font-display text-2xl text-ink dark:text-cream-soft">
-              {formatCurrency(totalBudgetTwd, 'TWD')}
+              {formatCurrency(spentTwd, 'TWD')}
             </p>
-            <div className="mt-2">
-              <ProgressBar value={usedPercent} />
-            </div>
             <p className="mt-1 text-[11px] text-warmgray dark:text-warmgray-light">
-              已使用 {usedPercent.toFixed(0)}%・剩餘 {(100 - usedPercent).toFixed(0)}%
+              約 {formatCurrency(spentForeign, 'JPY')}・共 {expenses.length} 筆紀錄
             </p>
           </Card>
         </div>
