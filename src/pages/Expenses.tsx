@@ -190,21 +190,21 @@ export default function Expenses() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-warmgray dark:text-warmgray-light">
               <PiggyBank size={16} />
-              <span className="text-xs">旅行預算</span>
+              <span className="text-xs">旅行總支出費用</span>
             </div>
             <button
               onClick={() => navigate('/more', { state: { openSettings: true } })}
               className="flex items-center gap-1 text-xs text-sage-dark active:opacity-60 dark:text-sage-light"
             >
-              <Pencil size={12} /> 編輯
+              <Pencil size={12} /> 編輯預算
             </button>
           </div>
-          <p className="mt-2 font-display text-3xl text-ink dark:text-cream-soft">{formatCurrency(totalBudgetTwd, 'TWD')}</p>
+          <p className="mt-2 font-display text-3xl text-ink dark:text-cream-soft">{formatCurrency(spentTwd, 'TWD')}</p>
           <div className="mt-3">
             <ProgressBar value={usedPercent} />
           </div>
           <p className="mt-1.5 text-[12px] text-warmgray dark:text-warmgray-light">
-            已花費 {formatCurrency(spentTwd, 'TWD')}（約 {formatCurrency(settlement.totalForeign, 'JPY')}）・剩餘{' '}
+            約 {formatCurrency(settlement.totalForeign, 'JPY')}・預算 {formatCurrency(totalBudgetTwd, 'TWD')}・剩餘{' '}
             {Math.max(0, 100 - usedPercent).toFixed(0)}%
           </p>
         </Card>
