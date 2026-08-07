@@ -181,6 +181,9 @@ export interface MustBuyItem {
   name: string
   store?: string
   price?: number
+  /** 最多 6 張照片 */
+  imageUrls?: string[]
+  /** @deprecated 舊資料的單張照片欄位，僅供相容讀取，新資料一律寫入 imageUrls */
   imageUrl?: string
   checked: boolean
   order: number

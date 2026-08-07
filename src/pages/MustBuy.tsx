@@ -12,7 +12,9 @@ import { BottomSheet } from '@/components/feedback/BottomSheet'
 import { SwipeToDelete } from '@/components/feedback/SwipeToDelete'
 import { useToast } from '@/components/feedback/Toast'
 
-const EMPTY: Omit<MustBuyDraft, 'travelerId'> = { name: '', store: '', price: undefined, imageUrl: undefined }
+const MAX_PHOTOS = 6
+
+const EMPTY: Omit<MustBuyDraft, 'travelerId'> = { name: '', store: '', price: undefined, imageUrls: [] }
 
 export default function MustBuy() {
   const { trip, loading: tripLoading } = useTrip()
@@ -36,19 +38,36 @@ export default function MustBuy() {
   const totalEstimate = travelerItems.reduce((sum, i) => sum + (i.price ?? 0), 0)
   const boughtEstimate = travelerItems.filter((i) => i.checked).reduce((sum, i) => sum + (i.price ?? 0), 0)
 
-  async function handlePickImage(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
+  async function handlePickImages(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
     e.target.value = ''
-    if (!file) return
+    if (files.length === 0) return
+
+    const currentCount = draft.imageUrls?.length ?? 0
+    const remainingSlots = MAX_PHOTOS - currentCount
+    if (remainingSlots <= 0) {
+      show(`最多只能上傳 ${MAX_PHOTOS} 張照片`, 'error')
+      return
+    }
+    const filesToProcess = files.slice(0, remainingSlots)
+    if (files.length > remainingSlots) {
+      show(`最多只能上傳 ${MAX_PHOTOS} 張，已自動取前 ${remainingSlots} 張`, 'error')
+    }
+
     setUploading(true)
     try {
-      const dataUrl = await resizeImageFile(file)
-      setDraft((p) => ({ ...p, imageUrl: dataUrl }))
+      // 縮圖寬度／畫質稍微保守一點，因為一個品項最多會存 6 張，避免整份雲端資料太肥大
+      const dataUrls = await Promise.all(filesToProcess.map((file) => resizeImageFile(file, 640, 0.65)))
+      setDraft((p) => ({ ...p, imageUrls: [...(p.imageUrls ?? []), ...dataUrls] }))
     } catch {
       show('圖片讀取失敗，換一張試試看', 'error')
     } finally {
       setUploading(false)
     }
+  }
+
+  function removeImage(index: number) {
+    setDraft((p) => ({ ...p, imageUrls: (p.imageUrls ?? []).filter((_, i) => i !== index) }))
   }
 
   function openAddForm() {
@@ -61,13 +80,24 @@ export default function MustBuy() {
     const item = items.find((i) => i.id === id)
     if (!item) return
     setEditingId(id)
-    setDraft({ name: item.name, store: item.store ?? '', price: item.price, imageUrl: item.imageUrl })
+    setDraft({
+      name: item.name,
+      store: item.store ?? '',
+      price: item.price,
+      // 相容舊資料：舊的品項只有單張 imageUrl，沒有 imageUrls
+      imageUrls: item.imageUrls ?? (item.imageUrl ? [item.imageUrl] : []),
+    })
     setSheetOpen(true)
   }
 
   function handleSave() {
     if (!draft.name.trim()) return show('請輸入品項名稱', 'error')
-    const clean = { name: draft.name.trim(), store: draft.store || undefined, price: draft.price, imageUrl: draft.imageUrl }
+    const clean = {
+      name: draft.name.trim(),
+      store: draft.store || undefined,
+      price: draft.price,
+      imageUrls: draft.imageUrls?.length ? draft.imageUrls : undefined,
+    }
     if (editingId) {
       updateItem(editingId, { travelerId: currentTravelerId, ...clean })
       show('已更新品項', 'success')
@@ -159,13 +189,20 @@ export default function MustBuy() {
                       onClick={() => openEditForm(item.id)}
                       className="flex min-w-0 flex-1 items-center gap-3"
                     >
-                      {item.imageUrl && (
-                        <img
-                          src={item.imageUrl}
-                          alt={item.name}
-                          className="h-10 w-10 shrink-0 rounded-soft object-cover"
-                        />
-                      )}
+                      {(() => {
+                        const photos = item.imageUrls ?? (item.imageUrl ? [item.imageUrl] : [])
+                        if (photos.length === 0) return null
+                        return (
+                          <div className="relative shrink-0">
+                            <img src={photos[0]} alt={item.name} className="h-10 w-10 rounded-soft object-cover" />
+                            {photos.length > 1 && (
+                              <span className="absolute -bottom-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-ink/80 px-1 text-[9px] font-medium text-cream-card">
+                                {photos.length}
+                              </span>
+                            )}
+                          </div>
+                        )
+                      })()}
                       <div className="min-w-0 flex-1">
                         <p
                           className={`truncate text-[14px] ${
@@ -195,35 +232,46 @@ export default function MustBuy() {
       <BottomSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title={editingId ? '編輯必買項目' : '新增必買項目'}>
         <div className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-[12px] text-warmgray dark:text-warmgray-light">照片（選填）</label>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="text-[12px] text-warmgray dark:text-warmgray-light">照片（選填，最多 {MAX_PHOTOS} 張）</label>
+              {(draft.imageUrls?.length ?? 0) > 0 && (
+                <span className="text-[11px] text-warmgray dark:text-warmgray-light">
+                  {draft.imageUrls?.length}/{MAX_PHOTOS}
+                </span>
+              )}
+            </div>
             <input
               ref={fileInputRef}
               type="file"
               accept="image/*"
-              onChange={handlePickImage}
+              multiple
+              onChange={handlePickImages}
               className="hidden"
             />
-            {draft.imageUrl ? (
-              <div className="relative w-fit">
-                <img src={draft.imageUrl} alt="預覽" className="h-28 w-28 rounded-soft object-cover" />
+            <div className="flex flex-wrap gap-2">
+              {(draft.imageUrls ?? []).map((url, index) => (
+                <div key={index} className="relative">
+                  <img src={url} alt={`預覽 ${index + 1}`} className="h-20 w-20 rounded-soft object-cover" />
+                  <button
+                    onClick={() => removeImage(index)}
+                    aria-label="移除照片"
+                    className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-ink/80 text-cream-card"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
+              {(draft.imageUrls?.length ?? 0) < MAX_PHOTOS && (
                 <button
-                  onClick={() => setDraft((p) => ({ ...p, imageUrl: undefined }))}
-                  aria-label="移除照片"
-                  className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-ink/80 text-cream-card"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-soft border-2 border-dashed border-khaki text-warmgray dark:border-dusk-border dark:text-warmgray-light"
                 >
-                  <X size={13} />
+                  <Camera size={19} />
+                  <span className="text-[10px]">{uploading ? '處理中…' : '新增'}</span>
                 </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="flex h-28 w-28 flex-col items-center justify-center gap-1.5 rounded-soft border-2 border-dashed border-khaki text-warmgray dark:border-dusk-border dark:text-warmgray-light"
-              >
-                <Camera size={22} />
-                <span className="text-[11px]">{uploading ? '處理中…' : '新增照片'}</span>
-              </button>
-            )}
+              )}
+            </div>
           </div>
           <div>
             <label className="mb-1.5 block text-[12px] text-warmgray dark:text-warmgray-light">品項名稱 *</label>

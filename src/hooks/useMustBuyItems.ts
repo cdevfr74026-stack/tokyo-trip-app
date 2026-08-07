@@ -8,7 +8,7 @@ export interface MustBuyDraft {
   name: string
   store?: string
   price?: number
-  imageUrl?: string
+  imageUrls?: string[]
 }
 
 export function useMustBuyItems() {
