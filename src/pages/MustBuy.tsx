@@ -12,7 +12,7 @@ import { BottomSheet } from '@/components/feedback/BottomSheet'
 import { SwipeToDelete } from '@/components/feedback/SwipeToDelete'
 import { useToast } from '@/components/feedback/Toast'
 
-const MAX_PHOTOS = 6
+const MAX_PHOTOS = 8
 
 const EMPTY: Omit<MustBuyDraft, 'travelerId'> = { name: '', store: '', price: undefined, imageUrls: [] }
 
@@ -56,7 +56,7 @@ export default function MustBuy() {
 
     setUploading(true)
     try {
-      // 縮圖寬度／畫質稍微保守一點，因為一個品項最多會存 6 張，避免整份雲端資料太肥大
+      // 縮圖寬度／畫質稍微保守一點，因為一個品項最多會存到 MAX_PHOTOS 張，避免整份雲端資料太肥大
       const dataUrls = await Promise.all(filesToProcess.map((file) => resizeImageFile(file, 640, 0.65)))
       setDraft((p) => ({ ...p, imageUrls: [...(p.imageUrls ?? []), ...dataUrls] }))
     } catch {
