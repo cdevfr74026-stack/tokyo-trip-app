@@ -1,4 +1,11 @@
-import { doc, getDoc, setDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore'
+import {
+  doc,
+  getDoc,
+  setDoc as firestoreSetDoc,
+  deleteDoc as firestoreDeleteDoc,
+  collection,
+  onSnapshot,
+} from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import type { StorageAdapter } from '@/lib/storage'
 
@@ -43,16 +50,17 @@ export class FirebaseStorageAdapter implements StorageAdapter {
     try {
       const ref = doc(collection(db, COLLECTION_NAME), key)
       const cleanValue = stripUndefined(value)
-      await setDoc(ref, { value: cleanValue, updatedAt: new Date().toISOString() })
+      await firestoreSetDoc(ref, { value: cleanValue, updatedAt: new Date().toISOString() })
     } catch (err) {
       console.error(`[firebase-storage] 寫入 ${key} 失敗`, err)
+      throw err
     }
   }
 
   async remove(key: string): Promise<void> {
     try {
       const ref = doc(collection(db, COLLECTION_NAME), key)
-      await deleteDoc(ref)
+      await firestoreDeleteDoc(ref)
     } catch (err) {
       console.error(`[firebase-storage] 刪除 ${key} 失敗`, err)
     }
@@ -76,6 +84,47 @@ export class FirebaseStorageAdapter implements StorageAdapter {
         // 否則畫面會永遠卡在 Loading Skeleton，使用者會以為 App 打不開。
         console.error(`[firebase-storage] 訂閱 ${key} 失敗`, err)
         callback(null)
+      },
+    )
+    return unsubscribe
+  }
+
+  async setDoc<T>(collectionKey: string, docId: string, value: T): Promise<void> {
+    try {
+      const ref = doc(collection(db, collectionKey), docId)
+      const cleanValue = stripUndefined(value)
+      await firestoreSetDoc(ref, { value: cleanValue, updatedAt: new Date().toISOString() })
+    } catch (err) {
+      console.error(`[firebase-storage] 寫入集合 ${collectionKey}/${docId} 失敗`, err)
+      throw err
+    }
+  }
+
+  async deleteDoc(collectionKey: string, docId: string): Promise<void> {
+    try {
+      const ref = doc(collection(db, collectionKey), docId)
+      await firestoreDeleteDoc(ref)
+    } catch (err) {
+      console.error(`[firebase-storage] 刪除集合 ${collectionKey}/${docId} 失敗`, err)
+      throw err
+    }
+  }
+
+  subscribeCollection<T>(collectionKey: string, callback: (items: Record<string, T>) => void): () => void {
+    const colRef = collection(db, collectionKey)
+    const unsubscribe = onSnapshot(
+      colRef,
+      (snap) => {
+        const result: Record<string, T> = {}
+        snap.forEach((docSnap) => {
+          const data = docSnap.data()
+          result[docSnap.id] = data.value as T
+        })
+        callback(result)
+      },
+      (err) => {
+        console.error(`[firebase-storage] 訂閱集合 ${collectionKey} 失敗`, err)
+        callback({})
       },
     )
     return unsubscribe

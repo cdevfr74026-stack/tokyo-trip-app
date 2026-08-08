@@ -7,6 +7,12 @@ export interface StorageAdapter {
   set<T>(key: string, value: T): Promise<void>
   remove(key: string): Promise<void>
   subscribe<T>(key: string, callback: (value: T | null) => void): () => void
+  // 集合模式：把資料拆成很多份「各自獨立」的小文件，而不是擠在同一份大文件裡。
+  // 專門用來放照片這種「單筆可能很肥大、加總起來很容易超過 1MB 上限」的內容——
+  // 拆開之後，每一份各自有 1MB 額度，彼此不會互相排擠，容量寬裕非常多。
+  subscribeCollection<T>(collectionKey: string, callback: (items: Record<string, T>) => void): () => void
+  setDoc<T>(collectionKey: string, docId: string, value: T): Promise<void>
+  deleteDoc(collectionKey: string, docId: string): Promise<void>
 }
 
 const NAMESPACE = 'travel-journal:'
@@ -28,6 +34,7 @@ class LocalStorageAdapter implements StorageAdapter {
       window.localStorage.setItem(NAMESPACE + key, JSON.stringify(value))
     } catch (err) {
       console.error(`[storage] 寫入 ${key} 失敗`, err)
+      throw err
     }
   }
 
@@ -50,6 +57,22 @@ class LocalStorageAdapter implements StorageAdapter {
     }
     window.addEventListener('storage', listener)
     return () => window.removeEventListener('storage', listener)
+  }
+
+  async setDoc<T>(collectionKey: string, docId: string, value: T): Promise<void> {
+    const map = (await this.get<Record<string, T>>(collectionKey)) ?? {}
+    map[docId] = value
+    await this.set(collectionKey, map)
+  }
+
+  async deleteDoc(collectionKey: string, docId: string): Promise<void> {
+    const map = (await this.get<Record<string, unknown>>(collectionKey)) ?? {}
+    delete map[docId]
+    await this.set(collectionKey, map)
+  }
+
+  subscribeCollection<T>(collectionKey: string, callback: (items: Record<string, T>) => void): () => void {
+    return this.subscribe<Record<string, T>>(collectionKey, (val) => callback(val ?? {}))
   }
 }
 
@@ -86,6 +109,26 @@ export const storage: StorageAdapter = {
     getAdapter().then((adapter) => {
       if (cancelled) return
       unsub = adapter.subscribe<T>(key, callback)
+    })
+    return () => {
+      cancelled = true
+      unsub?.()
+    }
+  },
+  async setDoc<T>(collectionKey: string, docId: string, value: T) {
+    const adapter = await getAdapter()
+    return adapter.setDoc(collectionKey, docId, value)
+  },
+  async deleteDoc(collectionKey: string, docId: string) {
+    const adapter = await getAdapter()
+    return adapter.deleteDoc(collectionKey, docId)
+  },
+  subscribeCollection<T>(collectionKey: string, callback: (items: Record<string, T>) => void) {
+    let unsub: (() => void) | null = null
+    let cancelled = false
+    getAdapter().then((adapter) => {
+      if (cancelled) return
+      unsub = adapter.subscribeCollection<T>(collectionKey, callback)
     })
     return () => {
       cancelled = true

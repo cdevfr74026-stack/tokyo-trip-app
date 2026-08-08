@@ -112,7 +112,7 @@ export default function MustBuy() {
     setUploading(true)
     try {
       // 縮圖寬度／畫質稍微保守一點，因為一個品項最多會存到 MAX_PHOTOS 張，避免整份雲端資料太肥大
-      const dataUrls = await Promise.all(filesToProcess.map((file) => resizeImageFile(file, 640, 0.65)))
+      const dataUrls = await Promise.all(filesToProcess.map((file) => resizeImageFile(file, 560, 0.6)))
       setDraft((p) => ({ ...p, imageUrls: [...(p.imageUrls ?? []), ...dataUrls] }))
     } catch {
       show('圖片讀取失敗，換一張試試看', 'error')
