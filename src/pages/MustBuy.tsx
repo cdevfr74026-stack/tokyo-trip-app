@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Check, ShoppingBag, Camera, X, Tags, Pencil, Trash2, ChevronDown } from 'lucide-react'
 import { useTrip } from '@/hooks/useTrip'
@@ -50,8 +50,27 @@ export default function MustBuy() {
   const [inlineAddingCategory, setInlineAddingCategory] = useState(false)
   const [inlineCategoryName, setInlineCategoryName] = useState('')
 
-  // 分類標籤收合狀態：預設全部展開，點標題可以收合／展開
-  const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set())
+  // 分類標籤收合狀態：預設全部展開，點標題可以收合／展開。
+  // 存在這台裝置的 localStorage 裡（純粹是畫面顯示偏好，不用跟雲端同步、不用跨裝置共用），
+  // 這樣重新整理頁面後，收合的分類還是會維持收合，不會每次都跳回全部展開。
+  const COLLAPSED_STORAGE_KEY = 'travel-journal:must-buy-collapsed-categories'
+  const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(() => {
+    try {
+      const raw = window.localStorage.getItem(COLLAPSED_STORAGE_KEY)
+      return raw ? new Set(JSON.parse(raw) as string[]) : new Set()
+    } catch {
+      return new Set()
+    }
+  })
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify([...collapsedKeys]))
+    } catch {
+      // 存不進去（例如無痕模式）就算了，不影響當下的收合／展開操作
+    }
+  }, [collapsedKeys])
+
   function toggleSection(key: string) {
     setCollapsedKeys((prev) => {
       const next = new Set(prev)
