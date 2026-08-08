@@ -8,6 +8,7 @@ export interface MustBuyDraft {
   name: string
   store?: string
   price?: number
+  categoryId?: string
   imageUrls?: string[]
 }
 

@@ -174,6 +174,13 @@ export interface PackingItem {
   order: number
 }
 
+export interface MustBuyCategory {
+  id: string
+  tripId: string
+  name: string
+  order: number
+}
+
 export interface MustBuyItem {
   id: string
   tripId: string
@@ -181,7 +188,9 @@ export interface MustBuyItem {
   name: string
   store?: string
   price?: number
-  /** 最多 6 張照片 */
+  /** 使用者自訂的分類標籤（例如「3Coins」），對應 MustBuyCategory.id，未分類時為 undefined */
+  categoryId?: string
+  /** 最多 8 張照片 */
   imageUrls?: string[]
   /** @deprecated 舊資料的單張照片欄位，僅供相容讀取，新資料一律寫入 imageUrls */
   imageUrl?: string

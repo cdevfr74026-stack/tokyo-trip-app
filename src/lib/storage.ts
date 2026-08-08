@@ -103,6 +103,7 @@ export const STORAGE_KEYS = {
   budget: 'budget',
   packingItems: 'packing-items',
   mustBuyItems: 'must-buy-items',
+  mustBuyCategories: 'must-buy-categories',
   tickets: 'tickets',
   flights: 'flights',
   accommodations: 'accommodations',
