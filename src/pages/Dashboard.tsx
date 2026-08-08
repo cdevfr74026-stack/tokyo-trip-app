@@ -17,8 +17,8 @@ import { TRIP_QUOTES } from '@/lib/seedData'
 import { useNavigate } from 'react-router-dom'
 
 const SUBWAY_MAPS = [
-  { id: 'tokyo-metro', title: '東京地鐵路線圖', src: '/maps/tokyo-metro.jpg' },
-  { id: 'jr-east', title: 'JR東日本路線圖', src: '/maps/jr-east.jpg' },
+  { id: 'tokyo-metro', title: '東京地鐵路線圖', src: 'maps/tokyo-metro.jpg' },
+  { id: 'jr-east', title: 'JR東日本路線圖', src: 'maps/jr-east.jpg' },
 ] as const
 
 const AVATAR_BG: Record<string, string> = {
