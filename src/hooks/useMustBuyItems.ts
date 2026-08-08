@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo } from 'react'
-import { STORAGE_KEYS } from '@/lib/storage'
+import { STORAGE_KEYS, storage } from '@/lib/storage'
 import { useCloudState } from '@/hooks/useCloudState'
 import { useCloudCollection } from '@/hooks/useCloudCollection'
 import type { MustBuyItem } from '@/types'
@@ -42,32 +42,83 @@ export function useMustBuyItems() {
   // 遷移 1：把「分開存之前」的舊合併資料，依旅伴搬到各自的索引文件，照片一併搬進獨立集合
   useEffect(() => {
     if (loading || legacy.value.length === 0) return
-    const forA = legacy.value.filter((i) => i.travelerId === 'traveler-1')
-    const forB = legacy.value.filter((i) => i.travelerId === 'traveler-2')
-    if (forA.length > 0) storeA.setValue((prev) => [...prev, ...forA.map(stripPhotoFields)])
-    if (forB.length > 0) storeB.setValue((prev) => [...prev, ...forB.map(stripPhotoFields)])
-    for (const i of [...forA, ...forB]) {
-      const p = i.imageUrls ?? (i.imageUrl ? [i.imageUrl] : [])
-      if (p.length > 0) photos.setDoc(i.id, p)
+    let cancelled = false
+
+    async function migrateLegacy() {
+      const forA = legacy.value.filter((i) => i.travelerId === 'traveler-1')
+      const forB = legacy.value.filter((i) => i.travelerId === 'traveler-2')
+
+      // 先確認每一筆照片都確實寫入新地方成功，才可以搬移索引資料、清空舊來源，
+      // 任何一步失敗就整批中止，保留舊資料原封不動，下次載入時會重新嘗試。
+      for (const i of [...forA, ...forB]) {
+        const p = i.imageUrls ?? (i.imageUrl ? [i.imageUrl] : [])
+        if (p.length === 0) continue
+        try {
+          await storage.setDoc(PHOTOS_COLLECTION, i.id, p)
+        } catch (err) {
+          console.error(`[useMustBuyItems] 搬遷舊資料的照片失敗，中止這次搬遷，保留原始資料`, err)
+          return
+        }
+      }
+      if (cancelled) return
+
+      if (forA.length > 0) storeA.setValue((prev) => [...prev, ...forA.map(stripPhotoFields)])
+      if (forB.length > 0) storeB.setValue((prev) => [...prev, ...forB.map(stripPhotoFields)])
+      legacy.setValue([])
     }
-    legacy.setValue([])
+
+    migrateLegacy()
+    return () => {
+      cancelled = true
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, legacy.value])
 
-  // 遷移 2：把「照片改成獨立集合之前」索引資料裡夾帶的舊照片欄位搬出去，索引瘦身
+  // 遷移 2：把「照片改成獨立集合之前」索引資料裡夾帶的舊照片欄位搬出去，索引瘦身。
+  // 這裡刻意不透過 photos.setDoc()（它是「先更新畫面、背景才寫入」的樂觀更新，
+  // 失敗了才回復，寫入結果無法立刻確認），而是直接呼叫 storage.setDoc() 並且
+  // await 等待寫入結果——一定要「確認新地方真的存好了」，才可以去清除舊欄位；
+  // 只要有任何一步失敗，就完整保留原始資料不動，避免資料在搬家過程中憑空消失。
   useEffect(() => {
     if (loading) return
-    for (const store of [storeA, storeB]) {
-      // 這裡讀取的是遷移前的舊資料形狀，型別上 MustBuyMeta 已經不包含照片欄位，
-      // 但實際資料庫裡可能還留著舊欄位，所以用 unknown 轉型讀取，僅限這段搬遷邏輯使用。
-      const raw = store.value as unknown as MustBuyItem[]
-      const withInlinePhotos = raw.filter((i) => (i.imageUrls && i.imageUrls.length > 0) || i.imageUrl)
-      if (withInlinePhotos.length === 0) continue
-      withInlinePhotos.forEach((i) => {
-        const p = i.imageUrls ?? (i.imageUrl ? [i.imageUrl] : [])
-        if (p.length > 0 && !photos.items[i.id]) photos.setDoc(i.id, p)
-      })
-      store.setValue((prev) => (prev as unknown as MustBuyItem[]).map(stripPhotoFields))
+    let cancelled = false
+
+    async function migrate() {
+      for (const store of [storeA, storeB]) {
+        const raw = store.value as unknown as MustBuyItem[]
+        const withInlinePhotos = raw.filter((i) => (i.imageUrls && i.imageUrls.length > 0) || i.imageUrl)
+        if (withInlinePhotos.length === 0) continue
+
+        const confirmedIds = new Set<string>()
+        for (const i of withInlinePhotos) {
+          if (cancelled) return
+          const p = i.imageUrls ?? (i.imageUrl ? [i.imageUrl] : [])
+          if (p.length === 0) continue
+          if (photos.items[i.id]) {
+            // 已經確實存在新地方了，不用重新寫入，但索引裡的舊欄位還是要清掉
+            confirmedIds.add(i.id)
+            continue
+          }
+          try {
+            await storage.setDoc(PHOTOS_COLLECTION, i.id, p)
+            confirmedIds.add(i.id)
+          } catch (err) {
+            console.error(`[useMustBuyItems] 搬遷品項 ${i.id} 的照片失敗，保留原始資料不清除`, err)
+          }
+        }
+        if (confirmedIds.size > 0 && !cancelled) {
+          store.setValue((prev) =>
+            (prev as unknown as MustBuyItem[]).map((item) =>
+              confirmedIds.has(item.id) ? stripPhotoFields(item) : item,
+            ),
+          )
+        }
+      }
+    }
+
+    migrate()
+    return () => {
+      cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, storeA.value, storeB.value])
