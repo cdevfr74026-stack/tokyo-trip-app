@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Check, ShoppingBag, Camera, X, Tags, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Check, ShoppingBag, Camera, X, Tags, Pencil, Trash2, ChevronDown } from 'lucide-react'
 import { useTrip } from '@/hooks/useTrip'
 import { useMustBuyItems, type MustBuyDraft } from '@/hooks/useMustBuyItems'
 import { useMustBuyCategories } from '@/hooks/useMustBuyCategories'
@@ -8,7 +8,6 @@ import { resizeImageFile } from '@/lib/image'
 import { Card } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { SectionLabel } from '@/components/ui/SectionLabel'
 import { FAB } from '@/components/ui/FAB'
 import { BottomSheet } from '@/components/feedback/BottomSheet'
 import { SwipeToDelete } from '@/components/feedback/SwipeToDelete'
@@ -50,6 +49,17 @@ export default function MustBuy() {
   // 新增／編輯品項表單中，快速新增分類用的內嵌輸入框
   const [inlineAddingCategory, setInlineAddingCategory] = useState(false)
   const [inlineCategoryName, setInlineCategoryName] = useState('')
+
+  // 分類標籤收合狀態：預設全部展開，點標題可以收合／展開
+  const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set())
+  function toggleSection(key: string) {
+    setCollapsedKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   const loading = tripLoading || itemsLoading || categoriesLoading
   const currentTravelerId = activeTravelerId ?? trip?.travelers[0]?.id ?? ''
@@ -252,93 +262,129 @@ export default function MustBuy() {
             description="點右下角按鈕，記下這次一定要買的伴手禮"
           />
         ) : (
-          groupedSections.map((section) => (
-            <div key={section.key} className="mb-5">
-              <SectionLabel>
-                {section.label}
-                {section.items.length > 0 ? `（${section.items.length}）` : ''}
-              </SectionLabel>
-              {section.items.length === 0 ? (
-                <p className="px-1 text-[12px] text-warmgray/70 dark:text-warmgray-light/60">這個分類還沒有品項</p>
-              ) : (
-                <Card padded={false} className="divide-y divide-khaki/40 dark:divide-dusk-border">
-                  <AnimatePresence initial={false}>
-                    {section.items.map((item) => (
-                      <SwipeToDelete key={item.id} onDelete={() => removeItem(item.id)}>
-                        <motion.div
-                          layout
-                          exit={{ opacity: 0, height: 0 }}
-                          className="flex items-center gap-3 px-4 py-3"
-                        >
-                          <button
-                            onClick={() => toggleItem(item.id)}
-                            aria-label="切換已購買狀態"
-                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors ${
-                              item.checked
-                                ? 'border-sage bg-sage text-cream-card'
-                                : 'border-khaki dark:border-dusk-border'
-                            }`}
-                          >
-                            {item.checked && (
-                              <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="animate-check-pop">
-                                <Check size={14} />
-                              </motion.span>
-                            )}
-                          </button>
-                          <div
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => openEditForm(item.id)}
-                            className="flex min-w-0 flex-1 items-center gap-3"
-                          >
-                            {(() => {
-                              const photos = item.imageUrls ?? (item.imageUrl ? [item.imageUrl] : [])
-                              if (photos.length === 0) return null
-                              return (
-                                <div className="relative shrink-0">
-                                  <img
-                                    src={photos[0]}
-                                    alt={item.name}
-                                    className="h-10 w-10 rounded-soft object-cover"
-                                  />
-                                  {photos.length > 1 && (
-                                    <span className="absolute -bottom-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-ink/80 px-1 text-[9px] font-medium text-cream-card">
-                                      {photos.length}
-                                    </span>
-                                  )}
-                                </div>
-                              )
-                            })()}
-                            <div className="min-w-0 flex-1">
-                              <p
-                                className={`truncate text-[14px] ${
-                                  item.checked
-                                    ? 'text-warmgray line-through dark:text-warmgray-light'
-                                    : 'text-ink dark:text-cream-soft'
-                                }`}
-                              >
-                                {item.name}
-                              </p>
-                              {item.store && (
-                                <p className="truncate text-[11px] text-warmgray dark:text-warmgray-light">
-                                  {item.store}
-                                </p>
-                              )}
-                            </div>
-                            {item.price != null && (
-                              <span className="text-[12px] text-warmgray dark:text-warmgray-light">
-                                ¥{item.price.toLocaleString()}
-                              </span>
-                            )}
-                          </div>
-                        </motion.div>
-                      </SwipeToDelete>
-                    ))}
-                  </AnimatePresence>
-                </Card>
-              )}
-            </div>
-          ))
+          groupedSections.map((section) => {
+            const isCollapsed = collapsedKeys.has(section.key)
+            return (
+              <div key={section.key} className="mb-5">
+                <button
+                  onClick={() => toggleSection(section.key)}
+                  className="mb-2 flex w-full items-center justify-between px-1 py-1 text-left active:opacity-70"
+                >
+                  <div className="flex items-center gap-1.5 text-ink/80 dark:text-cream-soft/85">
+                    <h2 className="font-display text-[15px] font-medium tracking-wide">
+                      {section.label}
+                      {section.items.length > 0 ? `（${section.items.length}）` : ''}
+                    </h2>
+                  </div>
+                  <motion.span
+                    animate={{ rotate: isCollapsed ? -90 : 0 }}
+                    transition={{ duration: 0.25, ease: 'easeOut' }}
+                    className="text-warmgray dark:text-warmgray-light"
+                  >
+                    <ChevronDown size={18} />
+                  </motion.span>
+                </button>
+                <AnimatePresence initial={false}>
+                  {!isCollapsed && (
+                    <motion.div
+                      key="content"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                      className="overflow-hidden"
+                    >
+                      {section.items.length === 0 ? (
+                        <p className="px-1 pb-1 text-[12px] text-warmgray/70 dark:text-warmgray-light/60">
+                          這個分類還沒有品項
+                        </p>
+                      ) : (
+                        <Card padded={false} className="divide-y divide-khaki/40 dark:divide-dusk-border">
+                          <AnimatePresence initial={false}>
+                            {section.items.map((item) => (
+                              <SwipeToDelete key={item.id} onDelete={() => removeItem(item.id)}>
+                                <motion.div
+                                  layout
+                                  exit={{ opacity: 0, height: 0 }}
+                                  className="flex items-center gap-3 px-4 py-3"
+                                >
+                                  <button
+                                    onClick={() => toggleItem(item.id)}
+                                    aria-label="切換已購買狀態"
+                                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors ${
+                                      item.checked
+                                        ? 'border-sage bg-sage text-cream-card'
+                                        : 'border-khaki dark:border-dusk-border'
+                                    }`}
+                                  >
+                                    {item.checked && (
+                                      <motion.span
+                                        initial={{ scale: 0 }}
+                                        animate={{ scale: 1 }}
+                                        className="animate-check-pop"
+                                      >
+                                        <Check size={14} />
+                                      </motion.span>
+                                    )}
+                                  </button>
+                                  <div
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => openEditForm(item.id)}
+                                    className="flex min-w-0 flex-1 items-center gap-3"
+                                  >
+                                    {(() => {
+                                      const photos = item.imageUrls ?? (item.imageUrl ? [item.imageUrl] : [])
+                                      if (photos.length === 0) return null
+                                      return (
+                                        <div className="relative shrink-0">
+                                          <img
+                                            src={photos[0]}
+                                            alt={item.name}
+                                            className="h-10 w-10 rounded-soft object-cover"
+                                          />
+                                          {photos.length > 1 && (
+                                            <span className="absolute -bottom-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-ink/80 px-1 text-[9px] font-medium text-cream-card">
+                                              {photos.length}
+                                            </span>
+                                          )}
+                                        </div>
+                                      )
+                                    })()}
+                                    <div className="min-w-0 flex-1">
+                                      <p
+                                        className={`truncate text-[14px] ${
+                                          item.checked
+                                            ? 'text-warmgray line-through dark:text-warmgray-light'
+                                            : 'text-ink dark:text-cream-soft'
+                                        }`}
+                                      >
+                                        {item.name}
+                                      </p>
+                                      {item.store && (
+                                        <p className="truncate text-[11px] text-warmgray dark:text-warmgray-light">
+                                          {item.store}
+                                        </p>
+                                      )}
+                                    </div>
+                                    {item.price != null && (
+                                      <span className="text-[12px] text-warmgray dark:text-warmgray-light">
+                                        ¥{item.price.toLocaleString()}
+                                      </span>
+                                    )}
+                                  </div>
+                                </motion.div>
+                              </SwipeToDelete>
+                            ))}
+                          </AnimatePresence>
+                        </Card>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )
+          })
         )}
       </div>
 
