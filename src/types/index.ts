@@ -177,6 +177,8 @@ export interface PackingItem {
 export interface MustBuyCategory {
   id: string
   tripId: string
+  /** 這個分類屬於哪位旅伴，分類清單僅在該旅伴的必買頁面顯示 */
+  travelerId: string
   name: string
   order: number
 }

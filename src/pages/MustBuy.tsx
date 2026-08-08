@@ -68,13 +68,18 @@ export default function MustBuy() {
     () => items.filter((i) => i.travelerId === currentTravelerId),
     [items, currentTravelerId],
   )
+  // 分類是各旅伴獨立的：蓁蓁新增的分類只會出現在蓁蓁自己的必買頁面，阿豬看不到
+  const travelerCategories = useMemo(
+    () => categories.filter((c) => c.travelerId === currentTravelerId),
+    [categories, currentTravelerId],
+  )
   const checkedCount = travelerItems.filter((i) => i.checked).length
   const totalEstimate = travelerItems.reduce((sum, i) => sum + (i.price ?? 0), 0)
   const boughtEstimate = travelerItems.filter((i) => i.checked).reduce((sum, i) => sum + (i.price ?? 0), 0)
 
   // 依分類把目前旅伴的品項分組：每個分類一組（依 order 排序），最後放「未分類」
   const groupedSections = useMemo(() => {
-    const sorted = [...categories].sort((a, b) => a.order - b.order)
+    const sorted = [...travelerCategories].sort((a, b) => a.order - b.order)
     const groups = sorted.map((c) => ({
       key: c.id,
       label: c.name,
@@ -86,7 +91,7 @@ export default function MustBuy() {
       groups.push({ key: '__uncategorized__', label: '未分類', items: uncategorized })
     }
     return groups
-  }, [categories, travelerItems])
+  }, [travelerCategories, travelerItems])
 
   async function handlePickImages(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
@@ -163,7 +168,7 @@ export default function MustBuy() {
   function handleAddCategoryFromSheet() {
     const trimmed = newCategoryName.trim()
     if (!trimmed) return
-    addCategory(trimmed)
+    addCategory(currentTravelerId, trimmed)
     setNewCategoryName('')
   }
 
@@ -189,7 +194,7 @@ export default function MustBuy() {
   function handleInlineAddCategory() {
     const trimmed = inlineCategoryName.trim()
     if (!trimmed) return
-    const id = addCategory(trimmed)
+    const id = addCategory(currentTravelerId, trimmed)
     if (id) setDraft((p) => ({ ...p, categoryId: id }))
     setInlineCategoryName('')
     setInlineAddingCategory(false)
@@ -447,7 +452,7 @@ export default function MustBuy() {
               >
                 不分類
               </button>
-              {categories.map((c) => (
+              {travelerCategories.map((c) => (
                 <button
                   key={c.id}
                   onClick={() => setDraft((p) => ({ ...p, categoryId: c.id }))}
@@ -537,15 +542,19 @@ export default function MustBuy() {
         </div>
       </BottomSheet>
 
-      <BottomSheet open={categorySheetOpen} onClose={() => setCategorySheetOpen(false)} title="管理分類">
+      <BottomSheet
+        open={categorySheetOpen}
+        onClose={() => setCategorySheetOpen(false)}
+        title={`管理分類・${trip.travelers.find((t) => t.id === currentTravelerId)?.name ?? ''}`}
+      >
         <div className="space-y-4">
-          {categories.length === 0 ? (
+          {travelerCategories.length === 0 ? (
             <p className="text-[13px] text-warmgray dark:text-warmgray-light">
               還沒有分類，新增一個吧，例如「3Coins」「唐吉訶德」
             </p>
           ) : (
             <div className="space-y-2">
-              {categories.map((c) => (
+              {travelerCategories.map((c) => (
                 <div key={c.id} className="flex items-center gap-2">
                   {editingCategoryId === c.id ? (
                     <>
