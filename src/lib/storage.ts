@@ -151,6 +151,7 @@ export const STORAGE_KEYS = {
   flights: 'flights',
   accommodations: 'accommodations',
   reminders: 'reminders',
+  coupons: 'coupons',
   favoriteSpots: 'favorite-spots',
   theme: 'theme-mode',
   onboardingSeen: 'onboarding-seen',

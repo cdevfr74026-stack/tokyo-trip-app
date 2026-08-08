@@ -256,6 +256,14 @@ export interface Reminder {
   completed: boolean
 }
 
+export interface Coupon {
+  id: string
+  tripId: string
+  name: string
+  url: string
+  order: number
+}
+
 export type SpotStatus = 'wishlist' | 'saved' | 'visited'
 
 export interface FavoriteSpot {

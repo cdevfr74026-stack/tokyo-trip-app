@@ -1,16 +1,20 @@
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useState } from 'react'
-import { CloudSun, Umbrella, Wallet2, Sparkles, Moon, SunMedium, Map } from 'lucide-react'
+import { CloudSun, Umbrella, Wallet2, Sparkles, Moon, SunMedium, Map, Ticket, Plus, ExternalLink } from 'lucide-react'
 import { useTrip, getCountdown } from '@/hooks/useTrip'
 import { useExpenses } from '@/hooks/useExpenses'
 import { useWeather } from '@/hooks/useWeather'
 import { useTheme } from '@/hooks/useTheme'
+import { useCoupons, type CouponDraft } from '@/hooks/useCoupons'
 import { Card } from '@/components/ui/Card'
 import { SectionLabel } from '@/components/ui/SectionLabel'
 import { StampBadge } from '@/components/ui/StampBadge'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { PullToRefresh } from '@/components/feedback/PullToRefresh'
 import { ImageViewerModal } from '@/components/feedback/ImageViewerModal'
+import { BottomSheet } from '@/components/feedback/BottomSheet'
+import { SwipeToDelete } from '@/components/feedback/SwipeToDelete'
 import { useToast } from '@/components/feedback/Toast'
 import { formatDateRange, formatCurrency, getDailyQuote } from '@/lib/format'
 import { TRIP_QUOTES } from '@/lib/seedData'
@@ -21,12 +25,7 @@ const SUBWAY_MAPS = [
   { id: 'jr-east', title: 'JR東日本路線圖', src: 'maps/jr-east.jpg' },
 ] as const
 
-const AVATAR_BG: Record<string, string> = {
-  sage: 'bg-sage-light dark:bg-sage-dark/40',
-  milktea: 'bg-milktea-light dark:bg-milktea-dark/40',
-  mist: 'bg-mist-light dark:bg-mist/40',
-  apricot: 'bg-apricot-light dark:bg-apricot/40',
-}
+const EMPTY_COUPON_DRAFT: CouponDraft = { name: '', url: '' }
 
 export default function Dashboard() {
   const [refreshKey, setRefreshKey] = useState(0)
@@ -52,6 +51,10 @@ function DashboardContent() {
   const navigate = useNavigate()
   const { byDate: weatherByDate } = useWeather(trip?.startDate, trip?.endDate)
   const [openMapId, setOpenMapId] = useState<string | null>(null)
+  const { coupons, addCoupon, removeCoupon } = useCoupons()
+  const [couponSheetOpen, setCouponSheetOpen] = useState(false)
+  const [couponDraft, setCouponDraft] = useState<CouponDraft>(EMPTY_COUPON_DRAFT)
+  const { show } = useToast()
 
   if (loading || !trip) {
     return (
@@ -73,6 +76,21 @@ function DashboardContent() {
   const spentForeign = expenses.reduce((sum, e) => sum + e.amountForeign, 0)
   const spentTwd = spentForeign * trip.exchangeRate
   const quote = getDailyQuote(TRIP_QUOTES)
+
+  function openAddCoupon() {
+    setCouponDraft(EMPTY_COUPON_DRAFT)
+    setCouponSheetOpen(true)
+  }
+
+  function handleSaveCoupon() {
+    if (!couponDraft.name.trim() || !couponDraft.url.trim()) {
+      show('請輸入名稱與網址', 'error')
+      return
+    }
+    addCoupon(couponDraft)
+    setCouponSheetOpen(false)
+    show('已加入優惠券連結', 'success')
+  }
 
   return (
     <div className="mx-auto max-w-lg pb-6">
@@ -190,24 +208,87 @@ function DashboardContent() {
           />
         ))}
 
-        {/* 旅伴 */}
+        {/* 優惠券連結 */}
         <div>
-          <SectionLabel>旅伴</SectionLabel>
-          <div className="flex gap-3">
-            {trip.travelers.map((t) => (
-              <Card key={t.id} className="!p-3.5 flex flex-1 items-center gap-2.5">
-                <div
-                  className={`flex h-9 w-9 items-center justify-center rounded-full text-base ${
-                    AVATAR_BG[t.avatarColor] ?? AVATAR_BG.sage
-                  }`}
-                >
-                  {t.avatarEmoji}
-                </div>
-                <span className="text-sm text-ink dark:text-cream-soft">{t.name}</span>
-              </Card>
-            ))}
-          </div>
+          <SectionLabel
+            icon={<Ticket size={15} className="text-sage-dark dark:text-sage-light" />}
+            action={
+              <button
+                onClick={openAddCoupon}
+                className="flex items-center gap-0.5 text-xs text-sage-dark active:opacity-60 dark:text-sage-light"
+              >
+                <Plus size={13} /> 新增
+              </button>
+            }
+          >
+            優惠券連結
+          </SectionLabel>
+
+          {coupons.length === 0 ? (
+            <EmptyState
+              icon={<span className="text-4xl">🎟️</span>}
+              title="還沒有加入優惠券連結"
+              description="把折扣碼、電子票券的網址存在這裡，隨時點開使用"
+            />
+          ) : (
+            <Card padded={false} className="divide-y divide-khaki/40 dark:divide-dusk-border">
+              <AnimatePresence initial={false}>
+                {coupons.map((c) => (
+                  <SwipeToDelete key={c.id} onDelete={() => removeCoupon(c.id)}>
+                    <motion.a
+                      layout
+                      exit={{ opacity: 0, height: 0 }}
+                      href={c.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-3 px-4 py-3.5 active:opacity-70"
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sage-light text-sage-dark dark:bg-sage-dark/30 dark:text-sage-light">
+                        <Ticket size={15} />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-[14px] text-ink dark:text-cream-soft">
+                        {c.name}
+                      </span>
+                      <ExternalLink size={15} className="shrink-0 text-warmgray dark:text-warmgray-light" />
+                    </motion.a>
+                  </SwipeToDelete>
+                ))}
+              </AnimatePresence>
+            </Card>
+          )}
         </div>
+
+        <BottomSheet open={couponSheetOpen} onClose={() => setCouponSheetOpen(false)} title="新增優惠券連結">
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-[12px] text-warmgray dark:text-warmgray-light">名稱 *</label>
+              <input
+                value={couponDraft.name}
+                onChange={(e) => setCouponDraft((p) => ({ ...p, name: e.target.value }))}
+                placeholder="例如：唐吉訶德 5% off"
+                className="w-full rounded-soft border border-khaki/60 bg-cream px-4 py-3 text-[15px] text-ink outline-none focus:border-sage dark:border-dusk-border dark:bg-dusk-bg dark:text-cream-soft"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-[12px] text-warmgray dark:text-warmgray-light">網址 *</label>
+              <input
+                value={couponDraft.url}
+                onChange={(e) => setCouponDraft((p) => ({ ...p, url: e.target.value }))}
+                placeholder="貼上優惠券或電子票券的網址"
+                inputMode="url"
+                autoCapitalize="off"
+                autoCorrect="off"
+                className="w-full rounded-soft border border-khaki/60 bg-cream px-4 py-3 text-[15px] text-ink outline-none focus:border-sage dark:border-dusk-border dark:bg-dusk-bg dark:text-cream-soft"
+              />
+            </div>
+            <button
+              onClick={handleSaveCoupon}
+              className="h-12 w-full rounded-soft bg-sage text-[15px] font-medium text-cream-card active:bg-sage-dark"
+            >
+              加入
+            </button>
+          </div>
+        </BottomSheet>
       </div>
     </div>
   )
