@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { useState } from 'react'
-import { CloudSun, Umbrella, Wallet2, Sparkles, Moon, SunMedium, ChevronRight, MapPin } from 'lucide-react'
+import { CloudSun, Umbrella, Wallet2, Sparkles, Moon, SunMedium, Map } from 'lucide-react'
 import { useTrip, getCountdown } from '@/hooks/useTrip'
 import { useExpenses } from '@/hooks/useExpenses'
 import { useWeather } from '@/hooks/useWeather'
@@ -9,13 +9,17 @@ import { Card } from '@/components/ui/Card'
 import { SectionLabel } from '@/components/ui/SectionLabel'
 import { StampBadge } from '@/components/ui/StampBadge'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { EmptyState } from '@/components/ui/EmptyState'
 import { PullToRefresh } from '@/components/feedback/PullToRefresh'
+import { ImageViewerModal } from '@/components/feedback/ImageViewerModal'
 import { useToast } from '@/components/feedback/Toast'
 import { formatDateRange, formatCurrency, getDailyQuote } from '@/lib/format'
-import { ITINERARY_CATEGORY_META } from '@/lib/categoryMeta'
 import { TRIP_QUOTES } from '@/lib/seedData'
 import { useNavigate } from 'react-router-dom'
+
+const SUBWAY_MAPS = [
+  { id: 'tokyo-metro', title: '東京地鐵路線圖', src: '/maps/tokyo-metro.jpg' },
+  { id: 'jr-east', title: 'JR東日本路線圖', src: '/maps/jr-east.jpg' },
+] as const
 
 const AVATAR_BG: Record<string, string> = {
   sage: 'bg-sage-light dark:bg-sage-dark/40',
@@ -42,11 +46,12 @@ export default function Dashboard() {
 }
 
 function DashboardContent() {
-  const { trip, days, items, loading } = useTrip()
+  const { trip, loading } = useTrip()
   const { expenses } = useExpenses()
   const { mode, toggle } = useTheme()
   const navigate = useNavigate()
   const { byDate: weatherByDate } = useWeather(trip?.startDate, trip?.endDate)
+  const [openMapId, setOpenMapId] = useState<string | null>(null)
 
   if (loading || !trip) {
     return (
@@ -64,11 +69,6 @@ function DashboardContent() {
   const countdown = getCountdown(trip.startDate, trip.endDate)
   const todayISO = new Date().toISOString().slice(0, 10)
   const todayWeather = weatherByDate[todayISO]
-  const todayDay =
-    countdown.status === 'ongoing' ? days.find((d) => d.dayIndex === countdown.days) : undefined
-  const todayItems = todayDay
-    ? items.filter((i) => i.dayId === todayDay.id).sort((a, b) => a.order - b.order)
-    : []
 
   const spentForeign = expenses.reduce((sum, e) => sum + e.amountForeign, 0)
   const spentTwd = spentForeign * trip.exchangeRate
@@ -158,59 +158,37 @@ function DashboardContent() {
           </Card>
         </div>
 
-        {/* 今日行程 */}
+        {/* 地鐵路線圖 */}
         <div>
-          <SectionLabel
-            icon={<MapPin size={15} className="text-sage-dark dark:text-sage-light" />}
-            action={
-              <button
-                onClick={() => navigate('/itinerary')}
-                className="flex items-center gap-0.5 text-xs text-warmgray active:opacity-60 dark:text-warmgray-light"
-              >
-                查看全部 <ChevronRight size={13} />
-              </button>
-            }
-          >
-            今天行程{todayDay ? `・${todayDay.areaLabel ?? ''}` : ''}
+          <SectionLabel icon={<Map size={15} className="text-sage-dark dark:text-sage-light" />}>
+            地鐵路線圖
           </SectionLabel>
 
-          {countdown.status !== 'ongoing' && (
-            <EmptyState
-              icon={<span className="text-4xl">🧳</span>}
-              title={countdown.status === 'upcoming' ? '旅程尚未開始' : '旅程已經結束囉'}
-              description={
-                countdown.status === 'upcoming'
-                  ? `再過 ${countdown.days} 天就出發，先去整理行程與行李吧！`
-                  : '打開旅行紀念冊，回味這趟旅程的每一刻。'
-              }
-            />
-          )}
-
-          {countdown.status === 'ongoing' && todayItems.length === 0 && (
-            <EmptyState icon={<span className="text-4xl">📝</span>} title="今天還沒有安排行程" description="到「行程」頁面新增今天要去的地方吧" />
-          )}
-
-          {countdown.status === 'ongoing' && todayItems.length > 0 && (
-            <Card padded={false} className="divide-y divide-khaki/40 dark:divide-dusk-border">
-              {todayItems.map((item, idx) => (
-                <motion.div
-                  key={item.id}
-                  initial={{ opacity: 0, x: -6 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.05, duration: 0.3 }}
-                  className="flex items-center gap-3 px-4 py-3.5"
-                >
-                  <span className="w-11 shrink-0 font-utility text-[12px] text-warmgray dark:text-warmgray-light">
-                    {item.time ?? '--:--'}
-                  </span>
-                  <span className="text-lg">{ITINERARY_CATEGORY_META[item.category].emoji}</span>
-                  <span className="flex-1 truncate text-[14px] text-ink dark:text-cream-soft">{item.title}</span>
-                  {item.completed && <span className="text-sage-dark dark:text-sage-light">✓</span>}
-                </motion.div>
-              ))}
-            </Card>
-          )}
+          <div className="grid grid-cols-2 gap-3">
+            {SUBWAY_MAPS.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => setOpenMapId(m.id)}
+                className="overflow-hidden rounded-card bg-cream-card text-left shadow-card active:scale-[0.98] dark:bg-dusk-card"
+              >
+                <div className="aspect-[4/3] w-full overflow-hidden bg-cream-soft dark:bg-dusk-bg">
+                  <img src={m.src} alt={m.title} className="h-full w-full object-cover object-left-top" />
+                </div>
+                <p className="px-3 py-2.5 text-[12.5px] text-ink dark:text-cream-soft">{m.title}</p>
+              </button>
+            ))}
+          </div>
         </div>
+
+        {SUBWAY_MAPS.map((m) => (
+          <ImageViewerModal
+            key={m.id}
+            open={openMapId === m.id}
+            onClose={() => setOpenMapId(null)}
+            src={m.src}
+            title={m.title}
+          />
+        ))}
 
         {/* 旅伴 */}
         <div>
