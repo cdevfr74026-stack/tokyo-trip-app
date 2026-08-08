@@ -5,6 +5,9 @@ import {
   deleteDoc as firestoreDeleteDoc,
   collection,
   onSnapshot,
+  query,
+  where,
+  documentId,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import type { StorageAdapter } from '@/lib/storage'
@@ -91,7 +94,11 @@ export class FirebaseStorageAdapter implements StorageAdapter {
 
   async setDoc<T>(collectionKey: string, docId: string, value: T): Promise<void> {
     try {
-      const ref = doc(collection(db, collectionKey), docId)
+      // 「集合模式」不建立新的 Firestore 頂層集合，而是把每一筆資料都當成
+      // trip-data 這個既有集合裡的一份普通文件（文件 id 用 "集合名::docId" 命名區隔）。
+      // 這樣完全沿用你原本就已經授權過的 Firestore 權限規則，不需要額外去
+      // Firebase 後台開新的讀寫規則，避免「新功能因為權限沒開到而讀不到資料」的問題。
+      const ref = doc(collection(db, COLLECTION_NAME), `${collectionKey}::${docId}`)
       const cleanValue = stripUndefined(value)
       await firestoreSetDoc(ref, { value: cleanValue, updatedAt: new Date().toISOString() })
     } catch (err) {
@@ -102,7 +109,7 @@ export class FirebaseStorageAdapter implements StorageAdapter {
 
   async deleteDoc(collectionKey: string, docId: string): Promise<void> {
     try {
-      const ref = doc(collection(db, collectionKey), docId)
+      const ref = doc(collection(db, COLLECTION_NAME), `${collectionKey}::${docId}`)
       await firestoreDeleteDoc(ref)
     } catch (err) {
       console.error(`[firebase-storage] 刪除集合 ${collectionKey}/${docId} 失敗`, err)
@@ -111,14 +118,23 @@ export class FirebaseStorageAdapter implements StorageAdapter {
   }
 
   subscribeCollection<T>(collectionKey: string, callback: (items: Record<string, T>) => void): () => void {
-    const colRef = collection(db, collectionKey)
+    const prefix = `${collectionKey}::`
+    // 用文件 id 的「前綴範圍」查詢，篩出屬於這個集合的所有文件——
+    // 概念上等於「訂閱一個集合」，但實際上還是同一個 trip-data 集合裡的查詢，
+    // 完全沿用原本已經授權過的權限規則。
+    const q = query(
+      collection(db, COLLECTION_NAME),
+      where(documentId(), '>=', prefix),
+      where(documentId(), '<', prefix + '\uf8ff'),
+    )
     const unsubscribe = onSnapshot(
-      colRef,
+      q,
       (snap) => {
         const result: Record<string, T> = {}
         snap.forEach((docSnap) => {
           const data = docSnap.data()
-          result[docSnap.id] = data.value as T
+          const id = docSnap.id.slice(prefix.length)
+          result[id] = data.value as T
         })
         callback(result)
       },
